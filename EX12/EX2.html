@@ -1,0 +1,898 @@
+<html>
+<head>
+<meta name="keywords" content="" />
+<meta name="description" content="" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>Computer Graphics Experiment Two</title>
+<link href='http://fonts.googleapis.com/css?family=Ubuntu+Condensed' rel='stylesheet' type='text/css'>
+<link href='http://fonts.googleapis.com/css?family=Marvel' rel='stylesheet' type='text/css'>
+<link href='http://fonts.googleapis.com/css?family=Marvel|Delius+Unicase' rel='stylesheet' type='text/css'>
+<link href='http://fonts.googleapis.com/css?family=Arvo' rel='stylesheet' type='text/css'>
+<link href="style.css" rel="stylesheet" type="text/css" media="screen" />
+</head>
+<body>
+<div id="wrapper">
+	<div id="wrapper2">
+		<div id="header" class="container">
+			<div id="logo">
+				<h1><a href="#">Computer <span>Graphics</span></a></h1>
+			</div>
+		</div>
+		<!-- end #header -->
+		<div id="page">
+			<div id="content">
+				<div class="post">
+					<h2 class="title"><a href="#">欢迎来到我的图形学实验二展示~ </a></h2>
+					<div style="clear: both;">&nbsp;</div>
+					<div class="entry">
+						<p>在第二个实验中，我们利用OpenGL来完成画一个简单的robot,在这个过程中体会光照模型和各种射影变换，并且可以选择性的对robot进行贴图美化。</p>
+						<p>在实现过程中，我先把robot画出来。画的时候头、肩膀、身体等部分要分开画，而且为了便于贴图，我把画正方体的方法进行了重写，这样可以指定坐标贴上图片。但是由于如果小人全部都用矩形
+						来画会比较难看，所以我还用了一些球形、圆柱等几何体来进行拼接，画出来的小人如图。</p>
+                        <br>
+						<img src="images/robot1.png">
+						<br>
+						<p>在画机器人的时候，设置每一个几何体的位置是，我同时会设置一个旋转函数，规定每一个几何体旋转的方向，而角度设置成变量，便于后来设置其运动，并且添加监听。在robot的运动函数中，我们将他的运动过程大致分为四个阶段，但是在每一个阶段处理起来需要做一些改动，比如因为小腿是跟随大腿摆动的所以大腿抬起来的时候，小腿需要朝着相反的方向变动。画出来以后走路的姿态如图。</p>
+						<br>
+						<img src="images/robot2.png">
+						<br>
+						<p>接下来通过对键盘操作进行监听，并且完善一下重画和重定型函数，来设置重画的一些东西，使小机器人可以动起来。设置的时候注意一些细节，比如开启深度检测啊，开启光照啊等等，这样可以使得画出来的小人更加真实。通过操作对小人造型以及小人的结构如图所示。</p>
+						<br>
+						<img src="images/robot3.png">
+						<img src="images/robot4.png">
+						<br>
+						<p>源代码附在下边啦，供大家参考。</p>
+						<p><font size="1">
+#include <stdlib.h><br>
+#include <stdio.h><br>
+#include <math.h><br>
+#include <string.h><br>
+#include <GL/glut.h><br>
+#include <GL/glaux.h><br>
+<br>
+#define M_PI 3.141592653<br>
+<br>
+#define COS(X)   cos( (X) * 3.14159/180.0 )<br>
+#define SIN(X)   sin( (X) * 3.14159/180.0 )<br>
+<br>
+#define HEAD 1<br>
+#define SHOUDER 2<br>
+#define BODY 3<br>
+#define WAIST 4<br>
+<br>
+#define UPLEG 5<br>
+#define LOWLEG 6<br>
+#define FOOT 7<br>
+<br>
+#define UPARM 8<br>
+#define LOWARM 9<br>
+<br>
+GLUquadricObj *qObj;//声明一个全局的二次曲面<br>
+static float lightpos[] = { 0.f, 200.f, 10.f, 1.f };<br>
+double turnbody = 0;<br>
+double elevation = 0;<br>
+int turnbodytemp;<br>
+<br>
+int iswalk = 0;<br>
+<br>
+static double v0, v1, v2;<br>
+static double a0, a1, a2;<br>
+<br>
+struct {<br>
+	float pos[2];<br>
+	float dir[2];<br>
+}myrobot;<br>
+<br>
+int mode = 0;<br>
+<br>
+int ileg = 0;//在循环中控制左右<br>
+int iarm = 0;<br>
+<br>
+
+double turnfront = 0;<br>
+double turnleft = 0;<br>
+double turnupward = 0;<br>
+
+//头，肩，腰。<br>
+double turnHead = 0;<br>
+double turnShouder = 0;<br>
+double turnWaist = 0;<br>
+
+//手臂。<br>
+double turnUpArmR = 0;<br>
+double turnMiddleArmR = 0;<br>
+double turnUpArmL = 0;<br>
+double turnMiddleArmL = 0;<br>
+
+//脚。<br>
+double turnUpLegR = 0;<br>
+double turnMiddleLegR = 0;<br>
+double turnFootR = 0;<br>
+<br>
+double turnUpLegL = 0;<br>
+double turnMiddleLegL = 0;<br>
+double turnFootL = 0;<br>
+<br>
+GLuint g_texture;//用于纹理贴图<br>
+char* trace[] = { "Texture.bmp", "Texture1.bmp" ,"Texture2.bmp" };<br>
+//Robot functions<br>
+void clear()//对各个参数进行清零<br>
+{<br>
+	elevation = 0;<br>
+	turnHead = 0;<br>
+	turnShouder = 0;<br>
+	turnWaist = 0;<br>
+	//手臂。<br>
+	turnUpArmR = 0;<br>
+	turnMiddleArmR = 0;<br>
+	//turnHandR = 0;<br>
+	turnUpArmL = 0;<br>
+	turnMiddleArmL = 0<br>;
+	//turnHandL = 0;<br>
+	//脚。<br>
+	turnUpLegR = 0;<br>
+	turnMiddleLegR = 0;<br>
+	turnFootR = 0;<br>
+	turnUpLegL = 0;<br>
+	turnMiddleLegL = 0;<br>
+	turnFootL = 0;<br>
+}<br>
+void Box(GLfloat xdim, GLfloat ydim, GLfloat zdim)<br>
+{<br>
+	glBindTexture(GL_TEXTURE_2D, g_texture);<br>
+	glPushMatrix();<br>
+	glBegin(GL_QUADS);<br>
+	//正面。<br>
+	glNormal3f(0.0f, 0.0f, 1.0f);//定义法向量<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//3<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//2<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//1<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//4<br>
+	<br>
+	//后面。<br>
+	glNormal3f(0.0f, 0.0f, -1.0f);<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//5<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//6<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//7<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//8<br>
+	//右面。<br>
+	glNormal3f(1.0f, 0.0f, 0.0f);<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//6<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//5<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//1<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//2<br>
+	//左面。<br>
+	glNormal3f(-1.0f, 0.0f, 0.0f);<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//4<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//8<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//7<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//3<br>
+	//上面。<br>
+	glNormal3f(0.0f, 1.0f, 0.0f);<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//1<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//5<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, -zdim / 2.0f);//8<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, ydim / 2.0f, zdim / 2.0f);//4<br>
+	//下面。<br>
+	glNormal3f(0.0f, -1.0f, 0.0f);<br>
+	glTexCoord2f(0.0f, 0.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//2<br>
+	glTexCoord2f(1.0f, 0.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, zdim / 2.0f);//3<br>
+	glTexCoord2f(1.0f, 1.0f);<br>
+	glVertex3f(-xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//7<br>
+	glTexCoord2f(0.0f, 1.0f);<br>
+	glVertex3f(xdim / 2.0f, -ydim / 2.0f, -zdim / 2.0f);//6<br>
+	<br>
+	glEnd();<br>
+<br>
+	glPopMatrix();<br>
+}<br>
+<br>
+int LoadGLTextures(GLuint& untexture, const char* chFileName){<br>
+	AUX_RGBImageRec *TextureImage;<br>
+	TextureImage = auxDIBImageLoad(trace[2]);<br>
+	glGenTextures(1, &untexture);<br>
+	glBindTexture(GL_TEXTURE_2D, untexture);<br>
+	glTexImage2D(GL_TEXTURE_2D, 0, 3, TextureImage->sizeX, TextureImage->sizeY, 0, GL_RGB, GL_UNSIGNED_BYTE, TextureImage->data);<br>
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);<br>
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);<br>
+	if (TextureImage){<br>
+		if (TextureImage->data){<br>
+			free(TextureImage->data);<br>
+		}<br>
+		free(TextureImage);<br>
+	}<br>
+	return 1;<br>
+}
+<br>
+void head()<br>
+{<br>
+	glNewList(HEAD, GL_COMPILE);//创建一个显示列表<br>
+	glPushMatrix();<br>
+	gluSphere(qObj, 10, 10, 10);//画一个球形作为头<br>
+	glRotatef(-turnHead, 0, 1, 0);//旋转方向为绕Y轴旋转<br>
+	glTranslatef(0, -5, 0);<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluCylinder(qObj, 5, 5, 15, 30, 30);<br>
+	glPopMatrix();<br>
+	glEndList();<br>
+}<br>
+void shouder()<br>
+{<br>
+	glNewList(SHOUDER, GL_COMPILE);<br>
+	glColor3f(0, 1, 0);<br>
+	glPushMatrix();<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluCylinder(qObj, 5, 22, 8, 30, 30);<br>
+	gluDisk(qObj, 0, 8, 30, 30);<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glTranslatef(0, -8, 0);<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluDisk(qObj, 0, 20, 30, 30);<br>
+	glPopMatrix();<br>
+	glColor3f(1, 1, 1);<br>
+	glEndList();<br>
+}<br>
+void body()<br>
+{<br>
+	glNewList(BODY, GL_COMPILE);<br>
+	glColor3f(0.5, 1, 0);<br>
+	gluCylinder(qObj, 10, 15, 25, 30, 30);<br>
+	glColor3f(1, 1, 1);<br>
+	glEndList();<br>
+}<br>
+void waist()<br>
+{<br>
+	glNewList(WAIST, GL_COMPILE);<br>
+	glColor3f(1, 1, 0);<br>
+	glPushMatrix();<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluCylinder(qObj, 10, 10, 2, 30, 30);<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glTranslatef(0, -2, 0);<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluCylinder(qObj, 10, 15, 15, 10, 10);//<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glTranslatef(0, -10, 0);<br>
+	glRotatef(90, 1, 0, 0);<br>
+	gluDisk(qObj, 0, 10, 30, 30);<br>
+	glPopMatrix();<br>
+	glColor3f(1, 1, 1);<br>
+	glEndList();<br>
+}<br>
+void foot()<br>
+{<br>
+	glPushMatrix();<br>
+	glColor3f(1, 0, 0);<br>
+	Box(5, 3, 15);<br>
+	glColor3f(1, 1, 1);<br>
+	glPopMatrix();<br>
+}<br>
+void lowleg()<br>
+{<br>
+	glRotatef(90, 1, 0, 0);<br>
+	glTranslatef(0, 0, 25);<br>
+	Box(6,6,50);<br>
+	glTranslatef(0, 0, -25);<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glTranslatef(-3, -50, 0);<br>
+	glRotatef(90, 0, 1, 0);<br>
+	gluCylinder(qObj, 3, 3, 6, 30, 30);<br>
+	glRotatef(-90, 0, 1, 0);<br>
+	glTranslatef(3, -2, 6);<br>
+	glColor3f(1, 1, 1);<br>
+	glPushMatrix();<br>
+	if (!ileg % 2)<br>
+	{<br>
+		glRotatef(turnFootR, 1, 0, 0);<br>
+		foot();<br>
+	}<br>
+	else<br>
+	{<br>
+		glRotatef(turnFootL, 1, 0, 0);<br>
+		foot();<br>
+	}<br>
+	glPopMatrix();<br>
+
+}<br>
+void upleg()<br>
+{<br>
+	glPushMatrix();<br>
+	for (ileg = 0; ileg< 2; ileg++)<br>
+	{<br>
+		if (ileg % 2)<br>
+			glTranslatef(-12, 0, 0);<br>
+		gluSphere(qObj, 4, 30, 30);<br>
+		glPushMatrix();<br>
+		if (!ileg % 2)<br>
+			glRotatef(turnUpLegR, 1, 0, 0);<br>
+		else<br>
+			glRotatef(turnUpLegL, 1, 0, 0);<br>
+		if (!ileg % 2)<br>
+			glRotatef(5, 0, 0, 1);<br>
+		else<br>
+			glRotatef(-5, 0, 0, 1);<br>
+		glRotatef(90, 1, 0, 0);<br>
+		glTranslatef(0, 0, 10);<br>
+		Box(8, 8, 20);<br>
+		glTranslatef(0, 0, -10);<br>
+		glRotatef(-90, 1, 0, 0);<br>
+		glTranslatef(-4, -23, 0);<br>
+		glRotatef(90, 0, 1, 0);<br>
+		gluCylinder(qObj, 3, 3, 8, 30, 30);<br>
+		glRotatef(-90, 0, 1, 0);<br>
+		glTranslatef(4, 0, 0);<br>
+		glColor3f(1, 1, 1);<br>
+		glPushMatrix();<br>
+		if (!ileg % 2)<br>
+		{<br>
+			glRotatef(turnMiddleLegR, 1, 0, 0);<br>
+			lowleg();<br>
+		}<br>
+		else<br>
+		{<br>
+			glRotatef(turnMiddleLegL, 1, 0, 0);<br>
+			lowleg();<br>
+		}<br>
+		glPopMatrix();<br>
+		glPopMatrix();<br>
+	}<br>
+	glPopMatrix();<br>
+}<br>
+<br>
+void lowarm()<br>
+{<br>
+	glRotatef(90, 1, 0, 0);<br>
+	glTranslatef(0,0,15);<br>
+	Box(6, 6, 30);<br>
+	glTranslatef(0, 0, -15);<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glTranslatef(-2, -20, 0);<br>
+}<br>
+void uparm()<br>
+{<br>
+	glPushMatrix();<br>
+	for (iarm = 0; iarm< 2; iarm++)<br>
+	{<br>
+		if (iarm % 2)<br>
+			glTranslatef(-50, 0, 0);<br>
+		gluSphere(qObj, 5, 30, 30);//肩关节连接处<br>
+		glPushMatrix();<br>
+		if (!iarm % 2)<br>
+			glRotatef(turnUpArmR, 1, 0, 0);<br>
+		else<br>
+			glRotatef(turnUpArmL, 1, 0, 0);<br>
+		if (!iarm % 2)<br>
+			glRotatef(10, 0, 0, 1);<br>
+		else<br>
+			glRotatef(-10, 0, 0, 1);<br>
+		glRotatef(90, 1, 0, 0);<br>
+		glTranslatef(0, 0, 10);<br>
+		Box(8, 8, 20);<br>
+		glTranslatef(0, 0, -10);<br>
+		glRotatef(-90, 1, 0, 0);<br>
+		glTranslatef(-4, -23, 0);<br>
+		glRotatef(90, 0, 1, 0);<br>
+		gluCylinder(qObj, 3, 3, 8, 30, 30);<br>
+		glColor3f(1, 1, 1);<br>
+		glRotatef(-90, 0, 1, 0);<br>
+		glTranslatef(4, 0, 0);<br>
+		glPushMatrix();<br>
+		if (!iarm % 2)<br>
+		{<br>
+			glRotatef(turnMiddleArmR, 1, 0, 0);<br>
+			lowarm();<br>
+		}<br>
+		else<br>
+		{<br>
+			glRotatef(turnMiddleArmL, 1, 0, 0);<br>
+			lowarm();<br>
+		}<br>
+		glPopMatrix();<br>
+		glPopMatrix();<br>
+	}<br>
+	glPopMatrix();<br>
+}<br>
+
+void myinit()<br>
+{<br>
+	qObj = gluNewQuadric();<br>
+<br>
+	glCullFace(GL_BACK);//背面裁剪<br>
+	glEnable(GL_CULL_FACE);//启用裁剪<br>
+	glEnable(GL_TEXTURE_2D);<br>
+	LoadGLTextures(g_texture, trace[2]);//载入贴图<br>
+<br>
+	glEnable(GL_DEPTH_TEST);//开启深度测试，跟踪z轴的像素<br>
+	glEnable(GL_COLOR_MATERIAL);//开启颜色材质<br>
+<br>
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);//设置像素的存储格式<br>
+<br>
+	//init robot pos<br>
+	myrobot.dir[0] = 0;<br>
+	myrobot.dir[1] = 0;<br>
+	myrobot.pos[0] = 0;<br>
+	myrobot.pos[1] = 0;<br>
+<br>
+	//Robotv<br>
+	head();<br>
+	shouder();<br>
+	body();<br>
+	waist();<br>
+}<br>
+<br>
+//Dynamic Object<br>
+void drawRobot()<br>
+{<br>
+<br>
+	glPushMatrix();<br>
+	glPushMatrix();<br>
+	glRotatef(-90, 1, 0, 0);<br>
+	glCallList(BODY);<br>
+	glPopMatrix();<br>
+<br>
+	glPushMatrix();<br>
+	glTranslatef(0, 33, 0);<br>
+	glRotatef(turnShouder, 0, 1, 0);<br>
+	glCallList(SHOUDER);<br>
+	glTranslatef(25, -7, 0);//<br>
+	uparm();<br>
+	glPopMatrix();<br>
+<br>
+	glPushMatrix();<br>
+	glTranslatef(0, 45, 0);<br>
+	glRotatef(turnHead, 0, 1, 0);<br>
+	glCallList(HEAD);<br>
+	glPopMatrix();<br>
+<br>
+	glPushMatrix();<br>
+	glRotatef(turnWaist, 0, 1, 0);<br>
+	glCallList(WAIST);<br>
+	glTranslatef(6, -15, 0);<br>
+	upleg();<br>
+	glPopMatrix();<br>
+	glPopMatrix();<br>
+
+}<br>
+<br>
+
+//Animation<br>
+void  robotrun()<br>
+{<br>
+	static int  step = 1;//走路的过程<br>
+	static int stept = 7;<br>
+	double degree = 6;//确定动作幅度<br>
+	if (step == 1)<br>
+	{<br>
+		//left arm<br>
+		turnUpArmL -= (degree / 3);//该阶段摆动幅度变小<br>
+		//right arm<br>
+		turnUpArmR += (degree / 3);<br>
+		//left leg<br>
+		turnUpLegL += (degree / 3);<br>
+		//right leg<br>
+		if (turnUpLegR >= -40)//判断右腿是否已经到达了极限，否则进入第二步<br>
+		{<br>
+			turnUpLegR -= degree;<br>
+			turnMiddleLegR += degree * 1.5;<br>
+		}<br>
+		else<br>
+		{<br>
+			elevation = 2;<br>
+			step = 2;<br>
+		}<br>
+	}<br>
+	else if (step == 2)<br>
+	{<br>
+		//left arm<br>
+		turnUpArmL -= (degree / 3);<br>
+		//right arm<br>
+		turnUpArmR += (degree / 3);<br>
+		//left leg<br>
+		turnUpLegL += degree / 3;<br>
+		//right leg<br>
+		if (turnUpLegR < = -20)//右腿到达前面的一半前的情况<br>
+		{<br>
+			turnUpLegR += degree;<br>
+			turnMiddleLegR -= degree*2.5;<br>
+		}<br>
+		else<br>
+		{<br>
+			elevation = 0;<br>
+			step = 3;<br>
+		}<br>
+	}<br>
+	else if (step == 3)<br>
+	{<br>
+		//left arm<br>
+		turnUpArmL += (degree);<br>
+		//right arm<br>
+		turnUpArmR -= (degree);<br>
+		//left leg<br>
+		if (turnUpLegL >= 0 && stept != 8)//左腿仍然不到最低点<br>
+		{<br>
+			turnUpLegL -= degree*3;//3<br>
+			turnMiddleLegL += degree*2;//1<br>
+		}<br>
+		else if (turnMiddleLegL >= 0 && stept != 8)<br>
+			turnMiddleLegL -= degree*2;//1<br>
+		else<br>
+		{<br>
+			stept = 8;<br>
+			if (turnUpLegL >= -40 && stept != 9)//左腿向后摆动幅度不至于过大<br>
+			{<br>
+				turnUpLegL -= degree*1.5 ;//3<br>
+				turnMiddleLegL += degree * 60 / 40;//1.5<br>
+			}<br>
+			else//到达极限后需要向回摆<br>
+			{<br>
+				stept = 9;<br>
+				turnUpLegL += degree * 3;<br>
+				turnMiddleLegL -= degree*2.5;<br>
+			}<br>
+		}<br>
+		//right leg<br>
+		if (turnUpLegR < = 20)<br>
+		{<br>
+			turnUpLegR += degree;<br>
+		}<br>
+		else//右腿向前摆动幅度到达极限<br>
+			step = 4;<br>
+	}<br>
+	else if (step == 4)//左腿开始向前，右腿向后<br>
+	{<br>
+		//left arm<br>
+		turnUpArmL -= (degree / 2.5);<br>
+		//right arm<br>
+		turnUpArmR += (degree / 2.5);<br>
+		//left leg<br>
+		turnUpLegL += degree / 1.8;<br>
+		stept = 7;<br>
+		//right leg<br>
+		if (turnUpLegR >= 0)<br>
+		{<br>
+			turnUpLegR -= degree;<br>
+			turnMiddleLegR += degree;<br>
+		}<br>
+		else if (turnMiddleLegR >= 0)<br>
+		{<br>
+			turnMiddleLegR -= degree;<br>
+		}<br>
+		else//重新回到步骤一<br>
+		{<br>
+			elevation = 2;<br>
+			step = 1;<br>
+		}<br>
+	}<br>
+	glutPostRedisplay();//标记循环时该部分需要重新绘制<br>
+}<br>
+//Key Listener<br>
+void  key(unsigned char key, int x, int y)<br>
+{<br>
+<br>
+	if (key == '\033')<br>
+		exit(0);<br>
+
+	if (key == 'm')//改变模式为透明或非透明<br>
+		mode++;<br>
+
+	//direction<br>
+	if (key == 'd')<br>
+	{<br>
+		turnbody += 10;//逆时针旋转<br>
+	}<br>
+	else if (key == 'a')<br>
+	{<br>
+		turnbody -= 10;//顺时针旋转<br>
+	}<br>
+<br>
+
+	myrobot.dir[0] = sin(M_PI / 180 * turnbody);//将输入的方向存到机器人的属性中<br>
+	myrobot.dir[1] = cos(M_PI / 180 * turnbody);<br>
+
+<br>
+	if (key == 'w')<br>
+	{<br>
+		iswalk = 1;<br>
+
+		float lastpos0 = myrobot.pos[0];<br>
+		float lastpos1 = myrobot.pos[1];<br>
+
+		myrobot.pos[0] += 5 * myrobot.dir[0];<br>
+		myrobot.pos[1] += 5 * myrobot.dir[1];<br>
+
+		//border dealv<br>
+		if (myrobot.pos[0] >= 450 ||<br>
+			myrobot.pos[0] <= -450 ||<br>
+			myrobot.pos[1] <= -450 ||<br>
+			myrobot.pos[1] >= 450//wall<br>
+			)<br>
+		{<br>
+			myrobot.pos[0] = lastpos0;<br>
+			myrobot.pos[1] = lastpos1;<br>
+		}<br>
+<br>
+		robotrun();<br>
+	}<br>
+	if (key == 'z'){<br>
+		lightpos[0] += 1.0;<br>
+	}<br><br>
+	if (key == 's')<br>
+	{<br>
+		iswalk = 1;<br>
+
+		float lastpos0 = myrobot.pos[0];<br>
+		float lastpos1 = myrobot.pos[1];<br>
+
+		myrobot.pos[0] -= 5 * myrobot.dir[0];<br>
+		myrobot.pos[1] -= 5 * myrobot.dir[1];<br>
+
+		//border deal<br>
+		if (myrobot.pos[0] >= 450 ||<br>
+			myrobot.pos[0] < = -450 ||<br>
+			myrobot.pos[1] < = -450 ||<br>
+			myrobot.pos[1] >= 450//wall<br>
+			)<br>
+		{<br>
+			myrobot.pos[0] = lastpos0;<br>
+			myrobot.pos[1] = lastpos1;<br>
+		}<br>
+
+		robotrun();<br>
+	}<br>
+<br>
+	else if (key == 'j')<br>
+	{<br>
+		turnShouder += 10;<br>
+	}<br>
+	else if (key == 'k')<br>
+	{<br>
+		turnWaist += 10;<br>
+	}<br>
+	else if (key == 'J')<br>
+	{<br>
+		turnShouder -= 10;<br>
+	}<br>
+	else if (key == 'K')<br>
+	{<br>
+		turnWaist -= 10;<br>
+	}<br>
+	if (key == 'u')<br>
+	{<br>
+		turnUpArmR += 10;<br>
+	}<br>
+	else if (key == 'i')<br>
+	{<br>
+		turnMiddleArmR += 10;<br>
+	}<br>
+	else if (key == 'U')<br>
+	{<br>
+		turnUpArmR -= 10;<br>
+	}<br>
+	else if (key == 'I')<br>
+	{<br>
+		turnMiddleArmR -= 10;<br>
+	}<br>
+	if (key == 'v')<br>
+	{<br>
+		turnUpArmL += 10;<br>
+	}<br>
+	else if (key == 'b')<br>
+	{<br>
+		turnMiddleArmL += 10;<br>
+	}<br>
+	else if (key == 'V')<br>
+	{<br>
+		turnUpArmL -= 10;<br>
+	}<br>
+	else if (key == 'B')<br>
+	{<br>
+		turnMiddleArmL -= 10;<br>
+	}<br>
+	if (key == 'r')<br>
+	{<br>
+		turnUpLegR += 10;<br>
+	}<br>
+	else if (key == 't')<br>
+	{	<br>
+		turnMiddleLegR += 10;<br>
+	}<br>
+	else if (key == 'y')<br>
+	{<br>
+		turnFootR += 10;<br>
+	}<br>
+	else if (key == 'R')<br>
+	{<br>
+		turnUpLegR -= 10;<br>
+	}<br>
+	else if (key == 'T')<br>
+	{<br>
+		turnMiddleLegR -= 10;<br>
+	}<br>
+	else if (key == 'Y')<br>
+	{<br>
+		turnFootR -= 10;<br>
+	}<br>
+	else if (key == 'f')<br>
+	{<br>
+		turnMiddleLegL += 10;<br>
+	}<br>
+	else if (key == 'g')<br>
+	{<br>
+		turnFootL += 10;<br>
+	}<br>
+	else if (key == 'D')<br>
+	{<br>
+		turnUpLegL -= 10;<br>
+	}<br>
+	else if (key == 'F')<br>
+	{<br>
+		turnMiddleLegL -= 10;<br>
+	}<br>
+	else if (key == 'G')<br>
+	{<br>
+		turnFootL -= 10;<br>
+	}<br>
+<br>
+	glutPostRedisplay();<br>
+
+}<br>
+
+
+void  redraw(void)<br>
+{	//设置清除屏幕的颜色，并清除屏幕和深度缓冲<br>
+	glClearColor(0.0, 0.6, 0.5, 1);//0.6,0.8,1<br>
+	glClearDepth(1.0);<br>
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);<br>
+	//<br>
+	//变换并绘制物体<br>
+	glMatrixMode(GL_PROJECTION);<br>
+	glLoadIdentity();//重置为单位阵<br>
+<br>
+	// gluPerspective(80.0, 1, 1,3000.0);<br>
+	gluPerspective(80.0, 1, 1, 3000.0);//指定透视视景体的大小<br>
+<br>
+	glPushMatrix();<br>
+	glLoadIdentity();<br>
+	glOrtho(0, 100, 0, 100, -1, 1);//平行视景体大小<br>
+	glMatrixMode(GL_MODELVIEW);<br>
+	glLoadIdentity();<br>
+	glNormal3f(0, 0, 1);<br>
+<br>
+	glTranslatef(37, 37, 0);<br>
+	//	glTranslatef(37,37,600);<br>
+	glFlush();//刷洗缓冲<br>
+	glMatrixMode(GL_PROJECTION);<br>
+	glPopMatrix();<br>
+<br>
+	glMatrixMode(GL_MODELVIEW);<br>
+	glLoadIdentity();<br>
+	glTranslatef(0, -8.6, -300);<br>
+	if (mode % 2)<br>
+	{<br>
+		glDisable(GL_LIGHTING);<br>
+		glDisable(GL_DEPTH_TEST);<br>
+		glDisable(GL_NORMALIZE);<br>
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);//轮廓显示<br>
+	}<br>
+	else<br>
+	{<br>
+		glEnable(GL_LIGHTING);<br>
+		glEnable(GL_DEPTH_TEST);<br>
+		glEnable(GL_NORMALIZE);<br>
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);//填充显示<br>
+	}<br>
+
+
+<br>
+	glLoadIdentity();<br>
+	gluLookAt(490, 450, 0, 0, -85, myrobot.pos[1], 0, 1, 0);//定义视图矩阵<br>
+	glPushMatrix();<br>
+	glTranslatef(0, 300, 0);<br>
+	glRotatef(turnleft, 0, 1, 0);<br>
+	glRotatef(turnupward, 1, 0, 0);<br>
+	glRotatef(turnfront, 0, 0, 1);<br>
+<br>
+	glPushMatrix();<br>
+	glTranslatef(0, elevation, 0);<br>
+<br>
+	//Robot<br>
+	glPushMatrix();<br>
+	if (iswalk)<br>
+		glTranslatef(myrobot.pos[0], 0, myrobot.pos[1]);<br>
+	glRotatef(turnbody, 0, 1, 0);<br>
+	drawRobot();<br>
+	glPopMatrix();<br>
+<br>
+	glPopMatrix();<br>
+<br>
+	glFlush();<br>
+	glutSwapBuffers();<br>
+<br>
+
+}<br>
+
+void  reshape(int w, int h)<br>
+{<br>
+	glViewport(0, 0, w, h);//视口<br>
+	//设定透视方式<br>
+	glMatrixMode(GL_PROJECTION);<br>
+	glLoadIdentity();<br>
+	gluPerspective(60.0, 1.0*(GLfloat)w / (GLfloat)h, 1.0, 30.0);<br>
+	glMatrixMode(GL_MODELVIEW);<br>
+	glLoadIdentity();<br>
+<br>
+}<br>
+
+int main(int argc, char *argv[])<br>
+{<br>
+	glutInit(&argc, argv);<br>
+	glutInitWindowSize(800, 700);<br>
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DEPTH | GLUT_ACCUM | GLUT_DOUBLE);<br>
+	(void)glutCreateWindow("Draw a robot.Try to use some keys to control it! ");<br>
+<br>
+	myinit();<br>
+<br>
+	glutDisplayFunc(redraw);<br>
+	glutReshapeFunc(reshape);<br>
+	glutKeyboardFunc(key);<br>
+<br>
+	glMatrixMode(GL_MODELVIEW);<br>
+<br><br>
+	glEnable(GL_DEPTH_TEST);<br>
+	glEnable(GL_LIGHTING);//启用0号灯<br>
+	glEnable(GL_LIGHT0);<br><br>
+	glLightfv(GL_LIGHT0, GL_POSITION, lightpos);//指定光源的位置<br>
+<br>
+	glutMainLoop();<br>
+<br>
+	return 0;<br>
+<br>
+}<br>
+</p>
+					</div>
+				</div>
+				<div style="clear: both;">&nbsp;</div>
+			</div>
+			<!-- end #content -->
+			<div id="sidebar">
+				<ul>
+					<li>
+						<h2>Motto</h2>
+						<p>不要因为走得太远而忘记了为什么出发</p>
+                        <p>努力不一定成功，但不努力一定会失败</p>
+					</li>
+				</ul>
+			</div>
+			<!-- end #sidebar -->
+			<div style="clear: both;">&nbsp;</div>
+		</div>
+		<!-- end #page -->
+		<div id="footer">
+			<p>Copyright (c) 2012 Sitename.com. All rights reserved. Design by Francis.</p>
+		</div>
+	</div>
+</div>
+<!-- end #footer -->
+</body>
+</html>

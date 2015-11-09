@@ -108,11 +108,11 @@ Smartphone Compatible web template, free webdesigns for Nokia, Samsung, LG, Sony
 						<div class="col-md-3 face">
 					<p><i class="facebook"> </i> </p>
 					<!-- <a href="http://w3layouts.com">W3layouts</a> 加超链接的方式 -->
-						<h4><a href="EX12/EX1.html">课程设计一</a></h4>
+						<h4><a href="/EX12/EX1.html">课程设计一</a></h4>
 							</div>
 								<div class="col-md-3 face">
 						<p><i class="twitter"> </i></p>
-						<h4><a href="EX12/EX2.html">课程设计二</a></h4>
+						<h4><a href="/EX12/EX2.html">课程设计二</a></h4>
 						</div>
 							<div class="col-md-3 face">
 						<p><i class="google"> </i></p>

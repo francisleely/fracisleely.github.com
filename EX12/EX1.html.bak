@@ -1,0 +1,261 @@
+<html>
+<head>
+<meta name="keywords" content="" />
+<meta name="description" content="" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>Computer Graphics Experiment One</title>
+</head>
+<body>
+<div id="wrapper">
+	<div id="wrapper2">
+		<div id="header" class="container">
+			<div id="logo">
+				<h1><a href="#">Computer <span>Graphics</span></a></h1>
+			</div>
+		</div>
+		<!-- end #header -->
+		<div id="page">
+			<div id="content">
+				<div class="post">
+					<h2 class="title"><a href="#">欢迎来到我的图形学实验一展示~ </a></h2>
+					<div style="clear: both;">&nbsp;</div>
+					<div class="entry">
+						<p>在第一个实验中，我们希望通过自己的实践利用OpenGL来完成画线和画圆,体会Bresenham画线画圆算法的精妙之处，亲自动手把该算法实现一下。</p>
+						<p>在实现过程中，画线算法我使用了Bresenham的方法，首先考虑一些special case，比如没有斜率的情况等等。接下来画的时候，由于没有要求用户的输入的两点有什么要求，所以我分了四种情况来讨论，但是基本的画法其实只写一种就可以了，其他的情况通过坐标转换，将求出的坐标在映射回去就可以了。画的时候注意在斜率大于一与小于一时从哪个方向画，具体的Bresenham方法是啥就不在赘述啦！</p>
+						<p>画圆方法也是差不多，但是只需要画出来第一象限八分之一个圆的基本情况，其他的根据对称就可以画出来。</p>
+						<p>实验的效果图如下：</p>
+						<img src="images/EX1.png">
+						<p>源代码附在下边啦，供大家参考。</p>
+						<p><font size="1">
+#include "stdafx.h"<br>
+#include "graphics.h"<br>
+<br>
+void draw_line(int x0, int y0, int x1, int y1){<br>
+
+	if (x1-x0== 0){//没有斜率的情况<br>
+		if (y1-y0 > 0){<br>
+			for (int y = y0; y <= y1; y++){<br>
+				putpixel(x0, y, ege::YELLOW);<br>
+			}<br>
+		}<br>
+		else{<br>
+			for (int y = y1; y <= y0; y++){<br>
+				putpixel(x0, y, ege::YELLOW);<br>
+			}<br>
+		}<br>
+	}<br>
+	else{<br>
+		int dx = 2 * (x1 - x0), dy = 2 * (y1 - y0);<br>
+		if ((dy / dx) >= -1 && (dy / dx <= 1)){//以x为基准来画<br>
+			if (x0 < x1){<br>
+				if (y0 <= y1){//最基本情况<br>
+					int x=x0, y=y0;<br>
+					int dydx = dy - dx;<br>
+					int F = dy - dx / 2;<br>
+					for (x; x <= x1; x++){<br>
+						putpixel(x, y, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+				else{//做一次关于y=y0对称<br>
+					int x = x0;<br>
+					int y = y0;<br>
+					dy = 2*(y0-y1);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= x1; x++){<br>
+						putpixel(x, 2 * y0 - y, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+			}<br>
+			else{<br>
+				if (y0 <= y1){<br>
+					int x = x0;<br>
+					int y = y0;<br>
+					dx = 2 * (x0 - x1);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= 2*x0-x; x++){<br>
+						putpixel(2*x0-x, y, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+				else{<br>
+					int x = x0;<br>
+					int y = y0;<br>
+					dy = 2 * (y0 - y1);<br>
+					dx = 2 * (x0 - x1);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= 2 * x0 - x; x++){<br>
+						putpixel(2 * x0 - x, 2*y0-y, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+			}<br>
+		}<br>
+		else{//以y为基准来画<br>
+			if (y0 <= y1){<br>
+				if (x0 < x1){<br>
+					int x = y0;<br>
+					int y = x0;<br>
+					dy = 2 * (x1 - x0);<br>
+					dx = 2 * (y1 - y0);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= y1; x++){<br>
+						putpixel(y, x, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+				else{<br>
+					int x = y0;<br>
+					int y = x0;<br>
+					dy = 2 * (x0-x1);<br>
+					dx = 2 * (y1 - y0);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= y1; x++){<br>
+						putpixel(2 * x0 - y, x, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+			}<br>
+			else{<br>
+				if (x0 < x1){<br>
+					int x = y0;<br>
+					int y = x0;<br>
+					dx = 2 * (y0 - y1);<br>
+					dy = 2 * (x1 - x0);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= 2 * y0 - y1; x++){<br>
+						putpixel(y, 2 * y0 - x, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+				else{<br>
+					int x = y0;<br>
+					int y = x0;<br>
+					dx = 2 * (y0 - y1);<br>
+					dy = 2 * (x0 - x1);<br>
+					int dydx = dy - dx, F = dy - dx / 2;<br>
+					for (x; x <= 2 * y0 - y1; x++){<br>
+						putpixel(2 * x0 - y, 2 * y0 - x, ege::YELLOW);<br>
+						if (F < 0)<br>
+							F += dy;<br>
+						else{<br>
+							y++;<br>
+							F += dydx;<br>
+						}<br>
+					}<br>
+				}<br>
+			}<br>
+		}<br>
+}<br>
+	
+}<br>
+<br>
+void draw_circle(int radius,int x0,int y0){<br>
+	int x =0, y = radius;<br>
+	int d = 1 - radius;<br>
+	while (y > x){<br>
+		if (d < 0)<br>
+			d += 2 * x + 3;<br>
+		else{<br>
+			d += 2 * (x - y) + 5;<br>
+			y--;<br>
+		}<br>
+		x++;<br>
+		putpixel(x+x0,y+y0,ege::YELLOW);//依次画出八个部分的圆，利用平移挪动到指定的像素点<br>
+		putpixel(y+x0,x+y0,ege::YELLOW);<br>
+		putpixel(-x+x0,y+y0,ege::YELLOW);<br>
+		putpixel(-y+x0,x+y0,ege::YELLOW);<br>
+		putpixel(x+x0,-y+y0,ege::YELLOW);<br>
+		putpixel(y+x0,-x+y0,ege::YELLOW);<br>
+		putpixel(-x+x0,-y+y0,ege::YELLOW);<br>
+		putpixel(-y+x0,-x+y0,ege::YELLOW);<br>
+	}<br>
+}<br>
+
+int main()<br>
+{
+	initgraph(300, 300);<br>
+	
+	draw_line(20, 280, 20, 20);<br>
+	draw_line(280, 20, 280, 280);<br>
+	draw_line(20, 20, 280, 20);<br>
+	draw_line(20, 280, 280, 280);<br>
+<br>
+	draw_line(20, 280, 280, 20);<br>
+	draw_line(20, 20, 280, 280);<br>
+<br>
+	draw_line(20, 280, 150, 20);<br>
+	draw_line(150,20,280,280);<br>
+	draw_line(20, 20, 150, 280);<br>
+	draw_line(150, 280, 280, 20);<br>
+<br>
+	draw_circle(50,150,150);<br>
+	draw_circle(80, 150, 150);<br>
+	draw_circle(100, 150, 150);<br>
+	getch();<br>
+	closegraph();<br>
+	return 0;<br>
+}<br>
+</p>
+					</div>
+				</div>
+				<div style="clear: both;">&nbsp;</div>
+			</div>
+			<!-- end #content -->
+			<div id="sidebar">
+				<ul>
+					<li>
+						<h2>Motto</h2>
+						<p>不要因为走得太远而忘记了为什么出发</p>
+                        <p>努力不一定成功，但不努力一定会失败</p>
+					</li>
+				</ul>
+			</div>
+			<!-- end #sidebar -->
+			<div style="clear: both;">&nbsp;</div>
+		</div>
+		<!-- end #page -->
+		<div id="footer">
+			<p>Copyright (c) 2012 Sitename.com. All rights reserved. Design by Francis.</p>
+		</div>
+	</div>
+</div>
+<!-- end #footer -->
+</body>
+</html>
